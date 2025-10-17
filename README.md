@@ -1,32 +1,22 @@
-# pyusdt
+# 🐍 pyusdt 🐝
 
 A Python profiler using USDT (User-level Statically Defined Tracing) probes for low-overhead performance monitoring.
 
 ## Overview
 
-pyusdt instruments Python code execution with USDT probes that can be traced using tools like `bpftrace`, `perf`, or `systemtap`. It uses Python's `sys.monitoring` API for efficient function-level tracing.
+pyusdt instruments Python code execution with USDT probes that can be traced using `bpftrace`. It uses Python's `sys.monitoring` API for efficient function-level tracing.
+
+This tool is particularly designed to enable bpftrace workflows where traces need to span both kernel and userspace, allowing you to correlate Python function calls with kernel events in a single trace session.
 
 ## Requirements
 
 - Python 3.12+ (for `sys.monitoring` API)
 - Linux with USDT support
-- `systemtap-sdt-devel` package (provides `sys/sdt.h` header)
-- bpftrace (for tracing)
-
-### Installing Build Dependencies
-
-On Fedora/RHEL:
-```bash
-sudo dnf install systemtap-sdt-devel
-```
-
-On Debian/Ubuntu:
-```bash
-sudo apt-get install systemtap-sdt-dev
-```
+- bpftrace
 
 ## Building
 
+Make sure gcc and the `sys/sdt.h` header are installed.
 Compile the USDT probe library:
 
 ```bash
