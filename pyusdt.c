@@ -5,10 +5,10 @@
 void pyusdt_PY_START(const char *code, const char *file, long long line)
 {
     DTRACE_PROBE3("libpyusdt.so", "pyusdt_PY_START", code, file, line);
-    fprintf(stderr, "probe complete: %s code [%s:%lld]\n", code, file, line);
+    //fprintf(stderr, "probe complete: %s code [%s:%lld]\n", code, file, line);
 }
 
 void pyusdt_init(void)
 {
-    fprintf(stderr, "pyusdt library loaded\n");
+    fprintf(stderr, "pyusdt C library loaded\n");
 }
