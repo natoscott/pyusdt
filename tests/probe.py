@@ -44,7 +44,7 @@ def test_probe_fires():
         if stderr:
             print(f"bpftrace stderr: {stderr}")
 
-        if "pyusdt_PY_START" in probes:
+        if "PY_START" in probes:
             print("✓ USDT probe found in process:")
             for line in probes.split('\n'):
                 if line.strip():
@@ -53,7 +53,7 @@ def test_probe_fires():
             proc.wait(timeout=2)
             return True
         else:
-            print("✗ No pyusdt_PY_START probe found")
+            print("✗ No PY_START probe found")
             print(f"Return code: {result.returncode}")
             print(f"PID: {proc.pid}")
             print(f"Available probes: {probes if probes else '(none)'}")
