@@ -5,4 +5,7 @@ def nap():
     time.sleep(1)
 
 while True:
-    nap()
+    try:
+        nap()
+    except KeyboardInterrupt:
+        break
