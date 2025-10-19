@@ -1,13 +1,17 @@
-CC = cc
-CFLAGS = -fPIC -Wall
-LDFLAGS = -Wl,-init,pyusdt_init -shared
-TARGET = libpyusdt.so
-SRC = pyusdt.c
+PYTHON := python3
+PYTHON_CONFIG := $(PYTHON)-config
+PYTHON_INCLUDE := $(shell $(PYTHON_CONFIG) --includes)
+PYTHON_LDFLAGS := $(shell $(PYTHON_CONFIG) --ldflags --embed 2>/dev/null || $(PYTHON_CONFIG) --ldflags)
+
+CC := cc
+CFLAGS := -fPIC -Wall $(PYTHON_INCLUDE)
+TARGET := libpyusdt.so
+SRC := pyusdt.c
 
 all: $(TARGET)
 
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET) $(SRC)
+$(TARGET): $(SRC) usdt.h
+	$(CC) $(CFLAGS) -shared -o $(TARGET) $(SRC) $(PYTHON_LDFLAGS)
 
 clean:
 	rm -f $(TARGET)

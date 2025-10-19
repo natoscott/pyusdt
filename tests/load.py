@@ -1,5 +1,4 @@
 import sys
-import importlib
 
 def test_pyusdt_import():
     """Test that the pyusdt module can be imported."""
@@ -25,22 +24,11 @@ def test_monitoring_enabled():
         print(f"✗ Expected 'pyusdt-profiling', got: {tool_name}")
         return False
 
-def test_library_loaded():
-    """Test that libpyusdt.so was loaded successfully."""
-    import pyusdt
-    if pyusdt._library_loaded:
-        print("✓ libpyusdt.so loaded successfully")
-        return True
-    else:
-        print("✗ libpyusdt.so failed to load")
-        return False
-
 if __name__ == "__main__":
     print("Running pyusdt tests...\n")
 
     results = []
     results.append(test_pyusdt_import())
-    results.append(test_library_loaded())
     results.append(test_monitoring_enabled())
 
     print(f"\nResults: {sum(results)}/{len(results)} tests passed")

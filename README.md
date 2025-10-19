@@ -16,14 +16,14 @@ This tool is particularly designed to enable bpftrace workflows where traces nee
 
 ## Building
 
-Make sure gcc and the `sys/sdt.h` header are installed.
-Compile the USDT probe library:
+Make sure gcc and Python development headers are installed.
+Compile the USDT probe extension:
 
 ```bash
 make
 ```
 
-This creates `libpyusdt.so` with embedded USDT probes.
+This creates `libpyusdt.so`, a Python C extension module with embedded USDT probes.
 
 ## Usage
 
@@ -67,9 +67,10 @@ make test
 
 ## How it Works
 
-1. `libpyusdt.so` - C library with USDT probe definitions
-2. `pyusdt/__init__.py` - Loads the library and sets up `sys.monitoring` callbacks
+1. `libpyusdt.so` - Python C extension module with USDT probe definitions and `sys.monitoring` integration
+2. `pyusdt/__init__.py` - Minimal Python wrapper that imports the C extension
 3. `pyusdt/__main__.py` - Entry point for `python -m pyusdt` execution
 4. `sample.bt` - bpftrace script to display traced function calls
+5. `usdt.h` - Header-only USDT library from libbpf/usdt
 
-The `PY_START` monitoring event fires when each Python function begins execution, triggering the USDT probe with the function name, filename, and line number.
+When the `pyusdt` module is imported, the C extension automatically registers a callback with Python's `sys.monitoring` API. The `PY_START` monitoring event fires when each Python function begins execution, triggering the USDT probe with the function name, filename, and line number.

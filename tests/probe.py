@@ -9,7 +9,7 @@ def test_probe_fires():
 
     # Start a simple Python script with pyusdt
     proc = subprocess.Popen(
-        [sys.executable, "-m", "pyusdt", "sleep.py"],
+        [sys.executable, "-c", "import pyusdt; exec(open('sleep.py').read())"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True

@@ -3,7 +3,7 @@
  * sample.bt - Trace Python function calls via USDT probes
  *
  * Usage: sudo bpftrace sample.bt -p <PID>
- *   or: sudo bpftrace sample.bt -c "python -m pyusdt sleep.py"
+ *   or: sudo bpftrace sample.bt -c "python -c 'import pyusdt; exec(open(\"sleep.py\").read())'"
  *
  * This script traces Python function calls instrumented with pyusdt USDT probes.
  */
@@ -14,7 +14,7 @@ BEGIN
     printf("%-20s %-40s %s\n", "FUNCTION", "FILE", "LINE");
 }
 
-usdt::libpyusdt.so:pyusdt_PY_START
+usdt::libpyusdt.so:pyusdt:PY_START
 {
     $func = str(arg0);
     $file = str(arg1);
