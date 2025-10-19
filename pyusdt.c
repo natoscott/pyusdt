@@ -58,13 +58,17 @@ static PyObject *py_start_callback(PyObject *self, PyObject *args)
 	const char *filename;
 	int line_number;
 
+	/* Early return if not being traced */
+	if (!USDT_IS_ACTIVE(pyusdt, PY_START))
+		Py_RETURN_NONE;
+
 	if (!PyArg_ParseTuple(args, "Ol", &code_obj, &offset))
 		return NULL;
 
 	if (get_code_info(code_obj, &function_name, &filename, &line_number) < 0)
 		return NULL;
 
-	USDT(pyusdt, PY_START, function_name, filename, line_number, offset);
+	USDT_WITH_SEMA(pyusdt, PY_START, function_name, filename, line_number, offset);
 	Py_RETURN_NONE;
 }
 
@@ -76,13 +80,17 @@ static PyObject *py_resume_callback(PyObject *self, PyObject *args)
 	const char *filename;
 	int line_number;
 
+	/* Early return if not being traced */
+	if (!USDT_IS_ACTIVE(pyusdt, PY_RESUME))
+		Py_RETURN_NONE;
+
 	if (!PyArg_ParseTuple(args, "Ol", &code_obj, &offset))
 		return NULL;
 
 	if (get_code_info(code_obj, &function_name, &filename, &line_number) < 0)
 		return NULL;
 
-	USDT(pyusdt, PY_RESUME, function_name, filename, line_number, offset);
+	USDT_WITH_SEMA(pyusdt, PY_RESUME, function_name, filename, line_number, offset);
 	Py_RETURN_NONE;
 }
 
@@ -97,6 +105,10 @@ static PyObject *py_return_callback(PyObject *self, PyObject *args)
 	int line_number;
 	const char *retval_repr;
 
+	/* Early return if not being traced - avoid expensive PyObject_Repr() */
+	if (!USDT_IS_ACTIVE(pyusdt, PY_RETURN))
+		Py_RETURN_NONE;
+
 	if (!PyArg_ParseTuple(args, "OlO", &code_obj, &offset, &retval))
 		return NULL;
 
@@ -108,7 +120,7 @@ static PyObject *py_return_callback(PyObject *self, PyObject *args)
 	if (repr) {
 		retval_repr = PyUnicode_AsUTF8(repr);
 		if (retval_repr) {
-			USDT(pyusdt, PY_RETURN, function_name, filename, line_number, offset, retval_repr);
+			USDT_WITH_SEMA(pyusdt, PY_RETURN, function_name, filename, line_number, offset, retval_repr);
 		}
 		Py_DECREF(repr);
 	} else {
@@ -129,6 +141,10 @@ static PyObject *py_yield_callback(PyObject *self, PyObject *args)
 	int line_number;
 	const char *retval_repr;
 
+	/* Early return if not being traced - avoid expensive PyObject_Repr() */
+	if (!USDT_IS_ACTIVE(pyusdt, PY_YIELD))
+		Py_RETURN_NONE;
+
 	if (!PyArg_ParseTuple(args, "OlO", &code_obj, &offset, &retval))
 		return NULL;
 
@@ -140,7 +156,7 @@ static PyObject *py_yield_callback(PyObject *self, PyObject *args)
 	if (repr) {
 		retval_repr = PyUnicode_AsUTF8(repr);
 		if (retval_repr) {
-			USDT(pyusdt, PY_YIELD, function_name, filename, line_number, offset, retval_repr);
+			USDT_WITH_SEMA(pyusdt, PY_YIELD, function_name, filename, line_number, offset, retval_repr);
 		}
 		Py_DECREF(repr);
 	} else {
@@ -163,6 +179,10 @@ static PyObject *call_callback(PyObject *self, PyObject *args)
 	int line_number;
 	const char *callable_repr;
 
+	/* Early return if not being traced - avoid expensive PyObject_Repr() */
+	if (!USDT_IS_ACTIVE(pyusdt, CALL))
+		Py_RETURN_NONE;
+
 	if (!PyArg_ParseTuple(args, "OlOO", &code_obj, &offset, &callable, &arg0))
 		return NULL;
 
@@ -174,7 +194,7 @@ static PyObject *call_callback(PyObject *self, PyObject *args)
 	if (repr) {
 		callable_repr = PyUnicode_AsUTF8(repr);
 		if (callable_repr) {
-			USDT(pyusdt, CALL, function_name, filename, line_number, offset, callable_repr);
+			USDT_WITH_SEMA(pyusdt, CALL, function_name, filename, line_number, offset, callable_repr);
 		}
 		Py_DECREF(repr);
 	} else {
@@ -194,13 +214,17 @@ static PyObject *line_callback(PyObject *self, PyObject *args)
 	const char *filename;
 	int first_line;
 
+	/* Early return if not being traced */
+	if (!USDT_IS_ACTIVE(pyusdt, LINE))
+		Py_RETURN_NONE;
+
 	if (!PyArg_ParseTuple(args, "Oi", &code_obj, &line_number))
 		return NULL;
 
 	if (get_code_info(code_obj, &function_name, &filename, &first_line) < 0)
 		return NULL;
 
-	USDT(pyusdt, LINE, function_name, filename, line_number);
+	USDT_WITH_SEMA(pyusdt, LINE, function_name, filename, line_number);
 	Py_RETURN_NONE;
 }
 
