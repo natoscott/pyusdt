@@ -71,6 +71,21 @@ make test
 2. `pyusdt/__init__.py` - Minimal Python wrapper that imports the C extension
 3. `pyusdt/__main__.py` - Entry point for `python -m pyusdt` execution
 4. `sample.bt` - bpftrace script to display traced function calls
-5. `usdt.h` - Header-only USDT library from libbpf/usdt
+5. `usdt.h` - Header-only USDT library from [libbpf/usdt](https://github.com/libbpf/usdt)
 
-When the `pyusdt` module is imported, the C extension automatically registers a callback with Python's `sys.monitoring` API. The `PY_START` monitoring event fires when each Python function begins execution, triggering the USDT probe with the function name, filename, and line number.
+When the `pyusdt` module is imported, the C extension automatically registers callbacks with Python's `sys.monitoring` API (see [PEP 669](https://peps.python.org/pep-0669/)). The following monitoring events are captured and exposed as USDT probes:
+
+- **PY_START** - Function entry
+- **PY_RESUME** - Generator/coroutine resumption
+- **PY_RETURN** - Function return with return value
+- **PY_YIELD** - Generator yield with yielded value
+- **CALL** - Function calls
+- **LINE** - Line-by-line execution
+
+Each event triggers its corresponding USDT probe with relevant context (function name, filename, line number, and event-specific data).
+
+## References
+
+- [PEP 669 - Low Impact Monitoring for CPython](https://peps.python.org/pep-0669/)
+- [sys.monitoring documentation](https://docs.python.org/3/library/sys.monitoring.html)
+- [libbpf/usdt - Header-only USDT library](https://github.com/libbpf/usdt)
