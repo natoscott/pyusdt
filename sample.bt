@@ -11,16 +11,69 @@
 BEGIN
 {
     printf("Tracing Python USDT probes... Hit Ctrl-C to end.\n");
-    printf("%-20s %-40s %s\n", "FUNCTION", "FILE", "LINE");
+    printf("%-12s %-20s %-30s %s\n", "EVENT", "FUNCTION", "FILE", "DETAILS");
 }
 
-usdt::libpyusdt.so:pyusdt:PY_START
+usdt:./libpyusdt.so:pyusdt:PY_START
+{
+    $func = str(arg0);
+    $file = str(arg1);
+    $line = arg2;
+    $offset = arg3;
+
+    printf("%-12s %-20s %-30s line:%d offset:%d\n", "PY_START", $func, $file, $line, $offset);
+}
+
+usdt:./libpyusdt.so:pyusdt:PY_RESUME
+{
+    $func = str(arg0);
+    $file = str(arg1);
+    $line = arg2;
+    $offset = arg3;
+
+    printf("%-12s %-20s %-30s line:%d offset:%d\n", "PY_RESUME", $func, $file, $line, $offset);
+}
+
+usdt:./libpyusdt.so:pyusdt:PY_RETURN
+{
+    $func = str(arg0);
+    $file = str(arg1);
+    $line = arg2;
+    $offset = arg3;
+    $retval = str(arg4);
+
+    printf("%-12s %-20s %-30s line:%d offset:%d retval:%s\n", "PY_RETURN", $func, $file, $line, $offset, $retval);
+}
+
+usdt:./libpyusdt.so:pyusdt:PY_YIELD
+{
+    $func = str(arg0);
+    $file = str(arg1);
+    $line = arg2;
+    $offset = arg3;
+    $yieldval = str(arg4);
+
+    printf("%-12s %-20s %-30s line:%d offset:%d yield:%s\n", "PY_YIELD", $func, $file, $line, $offset, $yieldval);
+}
+
+usdt:./libpyusdt.so:pyusdt:CALL
+{
+    $func = str(arg0);
+    $file = str(arg1);
+    $line = arg2;
+    $offset = arg3;
+    $callable = str(arg4);
+
+    printf("%-12s %-20s %-30s line:%d offset:%d callable:%s\n", "CALL", $func, $file, $line, $offset, $callable);
+}
+
+usdt:./libpyusdt.so:pyusdt:LINE
 {
     $func = str(arg0);
     $file = str(arg1);
     $line = arg2;
 
-    printf("%-20s %-40s %d\n", $func, $file, $line);
+    printf("%-12s %-20s %-30s line:%d\n", "LINE", $func, $file, $line);
 }
 
 END
