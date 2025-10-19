@@ -2,9 +2,26 @@
 #include <Python.h>
 #include "usdt.h"
 
+/* Global reference to sys.monitoring.MISSING */
+static PyObject *MISSING = NULL;
+
+/* Helper to check if object is sys.monitoring.MISSING */
+static int is_missing(PyObject *obj)
+{
+	return obj == MISSING;
+}
+
 /* Helper to extract code object info */
 static int get_code_info(PyObject *code_obj, const char **func_name, const char **filename, int *lineno)
 {
+	/* Check if code_obj is MISSING */
+	if (is_missing(code_obj)) {
+		*func_name = "<missing>";
+		*filename = "<missing>";
+		*lineno = 0;
+		return 0;
+	}
+
 	PyObject *name = PyObject_GetAttrString(code_obj, "co_name");
 	PyObject *file = PyObject_GetAttrString(code_obj, "co_filename");
 	PyObject *line = PyObject_GetAttrString(code_obj, "co_firstlineno");
@@ -272,6 +289,15 @@ PyMODINIT_FUNC PyInit_libpyusdt(void)
 		Py_DECREF(module);
 		return NULL;
 	}
+
+	/* Get reference to sys.monitoring.MISSING */
+	MISSING = PyObject_GetAttrString(monitoring, "MISSING");
+	if (!MISSING) {
+		Py_DECREF(monitoring);
+		Py_DECREF(module);
+		return NULL;
+	}
+	/* Keep MISSING as a borrowed reference - don't DECREF */
 
 	/* Get PROFILER_ID */
 	profiler_id = PyObject_GetAttrString(monitoring, "PROFILER_ID");
