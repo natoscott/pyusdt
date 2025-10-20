@@ -8,6 +8,8 @@ pyusdt instruments Python code execution with USDT probes that can be traced usi
 
 This tool is particularly designed to enable bpftrace workflows where traces need to span both kernel and userspace, allowing you to correlate Python function calls with kernel events in a single trace session.
 
+**Zero-overhead when not traced**: pyusdt uses dynamic callback registration combined with USDT semaphores. When no tracer is attached, monitoring callbacks are not registered with `sys.monitoring`, resulting in essentially zero performance impact on your Python code. When bpftrace or another tracer attaches, callbacks are automatically enabled within ~100ms.
+
 ## Requirements
 
 - Python 3.12+ (for `sys.monitoring` API)
@@ -37,6 +39,18 @@ Example:
 
 ```bash
 python -m pyusdt sleep.py
+```
+
+### Configuration
+
+Adjust the polling interval for tracer detection (default: 100ms):
+
+```bash
+# Check for attached tracers every 50ms
+PYUSDT_CHECK_MSEC=50 python -m pyusdt sleep.py
+
+# Check every 500ms (lower overhead, slower tracer detection)
+PYUSDT_CHECK_MSEC=500 python -m pyusdt sleep.py
 ```
 
 ## Tracing with bpftrace
@@ -73,7 +87,9 @@ make test
 4. `sample.bt` - bpftrace script to display traced function calls
 5. `usdt.h` - Header-only USDT library from [libbpf/usdt](https://github.com/libbpf/usdt)
 
-When the `pyusdt` module is imported, the C extension automatically registers callbacks with Python's `sys.monitoring` API (see [PEP 669](https://peps.python.org/pep-0669/)). The following monitoring events are captured and exposed as USDT probes:
+When the `pyusdt` module is imported, the C extension starts a background thread that polls USDT semaphores to detect when a tracer (like bpftrace) attaches. Only when a tracer is active does pyusdt register callbacks with Python's `sys.monitoring` API (see [PEP 669](https://peps.python.org/pep-0669/)). When the tracer detaches, callbacks are automatically unregistered.
+
+The following monitoring events are captured and exposed as USDT probes when tracing is active:
 
 - **PY_START** - Function entry
 - **PY_RESUME** - Generator/coroutine resumption
@@ -83,6 +99,16 @@ When the `pyusdt` module is imported, the C extension automatically registers ca
 - **LINE** - Line-by-line execution
 
 Each event triggers its corresponding USDT probe with relevant context (function name, filename, line number, and event-specific data).
+
+### Zero-Overhead Design
+
+pyusdt achieves true zero overhead when not being traced through:
+
+1. **USDT Semaphores**: The libbpf/usdt library uses kernel-managed semaphores that are incremented when tracers attach
+2. **Dynamic Callback Registration**: A background thread polls semaphores every 100ms and only registers `sys.monitoring` callbacks when needed
+3. **Automatic Enable/Disable**: When bpftrace attaches, monitoring activates within ~100ms; when it detaches, monitoring stops immediately
+
+This means you can leave pyusdt enabled in production with virtually no performance impact until you need to trace.
 
 ## References
 
