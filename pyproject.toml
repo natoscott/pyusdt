@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyusdt"
+version = "0.1.0"
+description = "Python profiler using USDT probes for low-overhead performance monitoring with bpftrace"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [
+    {name = "Nathan Scott"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: System :: Monitoring",
+]
+keywords = ["profiling", "tracing", "usdt", "bpftrace", "ebpf", "monitoring"]
+
+[project.urls]
+Homepage = "https://github.com/natoscott/pyusdt"
+Repository = "https://github.com/natoscott/pyusdt"
+Issues = "https://github.com/natoscott/pyusdt/issues"
+
+[tool.setuptools]
+packages = ["pyusdt"]
+
+[tool.cibuildwheel]
+build = ["cp312-*", "cp313-*"]
+skip = "*-musllinux_*"
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.linux]
+before-build = "yum install -y gcc python3-devel || apt-get install -y gcc python3-dev"

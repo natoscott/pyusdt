@@ -1,2 +1,8 @@
 libpyusdt.so
 __pycache__
+
+# Packaging artifacts
+build/
+dist/
+*.egg-info/
+*.egg

@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include pyusdt.c
+include usdt.h
+include sample.bt
+include Makefile
+recursive-include tests *.py
