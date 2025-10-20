@@ -51,7 +51,10 @@ Note: `tests/probe.py` and `tests/test_events.py` require bpftrace and sudo priv
 
 1. **C Extension Module (`pyusdt.c`)**: Python C extension with USDT probes
    - `PyInit_libpyusdt()`: Module initialization function
-   - Registers 6 monitoring event callbacks with `sys.monitoring`
+   - Uses dynamic callback registration: monitoring callbacks are only registered when a tracer is attached
+   - Background thread polls USDT semaphores every 100ms by default (configurable via `PYUSDT_CHECK_MSEC` env var)
+   - When bpftrace/tracer attaches, callbacks auto-enable; when detached, callbacks auto-disable
+   - Registers 6 monitoring event callbacks with `sys.monitoring` when active
    - Each callback fires corresponding USDT probe: PY_START, PY_RESUME, PY_RETURN, PY_YIELD, CALL, LINE
    - Handles `sys.monitoring.MISSING` sentinel value for missing code objects
    - Built into `libpyusdt.so`
@@ -98,6 +101,7 @@ When Python code executes, the following events are monitored and exposed as USD
 
 - **Why C extension?**: USDT probes require C macros (from libbpf/usdt); cannot be created in pure Python
 - **sys.monitoring vs sys.settrace**: `sys.monitoring` is faster and designed for production use (Python 3.12+, see PEP 669)
+- **Dynamic callback registration**: Combined with USDT semaphores for true zero-overhead when not tracing - callbacks are not registered until a tracer attaches
 - **All logic in C**: Minimizes Python overhead in monitoring callbacks for better performance
 - **MISSING handling**: Checks for `sys.monitoring.MISSING` sentinel to avoid crashes when code object unavailable
 - **Error handling**: `PyObject_Repr()` failures are caught and cleared to avoid breaking traced programs
@@ -122,6 +126,15 @@ sudo bpftrace sample.bt -p $(pgrep -f "python -m pyusdt")
 Trace with bpftrace (launch command):
 ```bash
 sudo bpftrace sample.bt -c "python -m pyusdt sleep.py"
+```
+
+Adjust polling interval (for faster/slower tracer detection):
+```bash
+# Check every 50ms
+PYUSDT_CHECK_MSEC=50 python -m pyusdt sleep.py
+
+# Check every 500ms
+PYUSDT_CHECK_MSEC=500 python -m pyusdt sleep.py
 ```
 
 ## Requirements

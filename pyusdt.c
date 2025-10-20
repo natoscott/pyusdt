@@ -1,9 +1,20 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include "usdt.h"
 
 /* Global reference to sys.monitoring.MISSING */
 static PyObject *MISSING = NULL;
+
+/* Global state for dynamic monitoring */
+static PyObject *g_module = NULL;
+static PyObject *g_monitoring = NULL;
+static int g_tool_id = -1;
+static int g_monitoring_enabled = 0;
+static pthread_t g_poll_thread;
+static volatile int g_poll_thread_running = 0;
 
 /* Helper to check if object is sys.monitoring.MISSING */
 static int is_missing(PyObject *obj)
@@ -285,16 +296,144 @@ static int register_event_callback(PyObject *module, PyObject *monitoring, int t
 	return 0;
 }
 
+/* Check if any USDT semaphore is active */
+static int any_semaphore_active(void)
+{
+	return USDT_IS_ACTIVE(pyusdt, PY_START) ||
+	       USDT_IS_ACTIVE(pyusdt, PY_RESUME) ||
+	       USDT_IS_ACTIVE(pyusdt, PY_RETURN) ||
+	       USDT_IS_ACTIVE(pyusdt, PY_YIELD) ||
+	       USDT_IS_ACTIVE(pyusdt, CALL) ||
+	       USDT_IS_ACTIVE(pyusdt, LINE);
+}
+
+/* Enable monitoring by registering callbacks */
+static int enable_monitoring(void)
+{
+	PyObject *events;
+	PyObject *result;
+	int event_mask;
+
+	if (g_monitoring_enabled)
+		return 0;  /* Already enabled */
+
+	/* Build event mask for all 6 events */
+	events = PyObject_GetAttrString(g_monitoring, "events");
+	if (!events)
+		return -1;
+
+	event_mask = 0;
+	PyObject *py_start = PyObject_GetAttrString(events, "PY_START");
+	PyObject *py_resume = PyObject_GetAttrString(events, "PY_RESUME");
+	PyObject *py_return = PyObject_GetAttrString(events, "PY_RETURN");
+	PyObject *py_yield = PyObject_GetAttrString(events, "PY_YIELD");
+	PyObject *call = PyObject_GetAttrString(events, "CALL");
+	PyObject *line = PyObject_GetAttrString(events, "LINE");
+
+	if (py_start) event_mask |= PyLong_AsLong(py_start);
+	if (py_resume) event_mask |= PyLong_AsLong(py_resume);
+	if (py_return) event_mask |= PyLong_AsLong(py_return);
+	if (py_yield) event_mask |= PyLong_AsLong(py_yield);
+	if (call) event_mask |= PyLong_AsLong(call);
+	if (line) event_mask |= PyLong_AsLong(line);
+
+	Py_XDECREF(py_start);
+	Py_XDECREF(py_resume);
+	Py_XDECREF(py_return);
+	Py_XDECREF(py_yield);
+	Py_XDECREF(call);
+	Py_XDECREF(line);
+	Py_DECREF(events);
+
+	/* Set all events */
+	result = PyObject_CallMethod(g_monitoring, "set_events", "ii", g_tool_id, event_mask);
+	if (!result)
+		return -1;
+	Py_DECREF(result);
+
+	/* Register callbacks for each event */
+	if (register_event_callback(g_module, g_monitoring, g_tool_id, "PY_START", "_py_start_callback") < 0 ||
+	    register_event_callback(g_module, g_monitoring, g_tool_id, "PY_RESUME", "_py_resume_callback") < 0 ||
+	    register_event_callback(g_module, g_monitoring, g_tool_id, "PY_RETURN", "_py_return_callback") < 0 ||
+	    register_event_callback(g_module, g_monitoring, g_tool_id, "PY_YIELD", "_py_yield_callback") < 0 ||
+	    register_event_callback(g_module, g_monitoring, g_tool_id, "CALL", "_call_callback") < 0 ||
+	    register_event_callback(g_module, g_monitoring, g_tool_id, "LINE", "_line_callback") < 0) {
+		return -1;
+	}
+
+	g_monitoring_enabled = 1;
+	PySys_WriteStderr("pyusdt: monitoring enabled\n");
+	return 0;
+}
+
+/* Disable monitoring by deregistering callbacks */
+static int disable_monitoring(void)
+{
+	PyObject *result;
+
+	if (!g_monitoring_enabled)
+		return 0;  /* Already disabled */
+
+	/* Set events to 0 (disable all) */
+	result = PyObject_CallMethod(g_monitoring, "set_events", "ii", g_tool_id, 0);
+	if (!result)
+		return -1;
+	Py_DECREF(result);
+
+	g_monitoring_enabled = 0;
+	PySys_WriteStderr("pyusdt: monitoring disabled\n");
+	return 0;
+}
+
+/* Get polling interval from environment variable, default 100ms */
+static int get_poll_interval_usec(void)
+{
+	const char *env = getenv("PYUSDT_CHECK_MSEC");
+	if (env) {
+		int msec = atoi(env);
+		if (msec > 0 && msec <= 10000) {  /* Cap at 10 seconds */
+			return msec * 1000;  /* Convert to microseconds */
+		}
+	}
+	return 100000;  /* Default: 100ms */
+}
+
+/* Background thread that polls semaphores and enables/disables monitoring */
+static void *poll_semaphores_thread(void *arg)
+{
+	(void)arg;
+	int poll_interval = get_poll_interval_usec();
+
+	while (g_poll_thread_running) {
+		/* Check if any semaphore is active */
+		int active = any_semaphore_active();
+
+		/* Acquire GIL for Python API calls */
+		PyGILState_STATE gstate = PyGILState_Ensure();
+
+		if (active && !g_monitoring_enabled) {
+			enable_monitoring();
+		} else if (!active && g_monitoring_enabled) {
+			disable_monitoring();
+		}
+
+		PyGILState_Release(gstate);
+
+		/* Sleep before checking again */
+		usleep(poll_interval);
+	}
+
+	return NULL;
+}
+
 PyMODINIT_FUNC PyInit_libpyusdt(void)
 {
 	PyObject *module;
 	PyObject *sys_module;
 	PyObject *monitoring;
 	PyObject *profiler_id;
-	PyObject *events;
 	PyObject *result;
 	int tool_id;
-	int event_mask;
 
 	module = PyModule_Create(&pyusdtmodule);
 	if (module == NULL)
@@ -342,62 +481,23 @@ PyMODINIT_FUNC PyInit_libpyusdt(void)
 	}
 	Py_DECREF(result);
 
-	/* Get events and calculate event mask (PY_START | PY_RESUME | PY_RETURN | PY_YIELD | CALL | LINE) */
-	events = PyObject_GetAttrString(monitoring, "events");
-	if (!events) {
+	/* Store global state for dynamic enable/disable */
+	g_module = module;
+	Py_INCREF(g_module);
+	g_monitoring = monitoring;
+	Py_INCREF(g_monitoring);
+	g_tool_id = tool_id;
+
+	/* Start background thread to poll semaphores */
+	g_poll_thread_running = 1;
+	if (pthread_create(&g_poll_thread, NULL, poll_semaphores_thread, NULL) != 0) {
+		PySys_WriteStderr("pyusdt: failed to create poll thread\n");
 		Py_DECREF(monitoring);
 		Py_DECREF(module);
 		return NULL;
 	}
 
-	/* Build event mask: 1 | 2 | 4 | 8 | 16 | 32 = 63 */
-	event_mask = 0;
-	PyObject *py_start = PyObject_GetAttrString(events, "PY_START");
-	PyObject *py_resume = PyObject_GetAttrString(events, "PY_RESUME");
-	PyObject *py_return = PyObject_GetAttrString(events, "PY_RETURN");
-	PyObject *py_yield = PyObject_GetAttrString(events, "PY_YIELD");
-	PyObject *call = PyObject_GetAttrString(events, "CALL");
-	PyObject *line = PyObject_GetAttrString(events, "LINE");
-
-	if (py_start) event_mask |= PyLong_AsLong(py_start);
-	if (py_resume) event_mask |= PyLong_AsLong(py_resume);
-	if (py_return) event_mask |= PyLong_AsLong(py_return);
-	if (py_yield) event_mask |= PyLong_AsLong(py_yield);
-	if (call) event_mask |= PyLong_AsLong(call);
-	if (line) event_mask |= PyLong_AsLong(line);
-
-	Py_XDECREF(py_start);
-	Py_XDECREF(py_resume);
-	Py_XDECREF(py_return);
-	Py_XDECREF(py_yield);
-	Py_XDECREF(call);
-	Py_XDECREF(line);
-	Py_DECREF(events);
-
-	/* Set all events at once */
-	result = PyObject_CallMethod(monitoring, "set_events", "ii", tool_id, event_mask);
-	if (!result) {
-		Py_DECREF(monitoring);
-		Py_DECREF(module);
-		return NULL;
-	}
-	Py_DECREF(result);
-
-	/* Register callbacks for each event */
-	if (register_event_callback(module, monitoring, tool_id, "PY_START", "_py_start_callback") < 0 ||
-	    register_event_callback(module, monitoring, tool_id, "PY_RESUME", "_py_resume_callback") < 0 ||
-	    register_event_callback(module, monitoring, tool_id, "PY_RETURN", "_py_return_callback") < 0 ||
-	    register_event_callback(module, monitoring, tool_id, "PY_YIELD", "_py_yield_callback") < 0 ||
-	    register_event_callback(module, monitoring, tool_id, "CALL", "_call_callback") < 0 ||
-	    register_event_callback(module, monitoring, tool_id, "LINE", "_line_callback") < 0) {
-		Py_DECREF(monitoring);
-		Py_DECREF(module);
-		return NULL;
-	}
-
-	Py_DECREF(monitoring);
-
-	PySys_WriteStderr("pyusdt monitoring enabled (PY_START, PY_RESUME, PY_RETURN, PY_YIELD, CALL, LINE)\n");
+	PySys_WriteStderr("pyusdt: ready (monitoring will enable when tracer attaches)\n");
 
 	return module;
 }
