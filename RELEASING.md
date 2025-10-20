@@ -33,7 +33,7 @@
 
 5. The GitHub Actions workflow will automatically:
    - Build wheels for x86_64 and aarch64 architectures
-   - Build wheels for Python 3.12 and 3.13
+   - Build wheels for Python 3.12, 3.13, and 3.14
    - Build the source distribution
    - Publish to PyPI using trusted publishing
 

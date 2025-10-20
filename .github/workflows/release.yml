@@ -18,7 +18,7 @@ jobs:
     - name: Build wheels
       uses: pypa/cibuildwheel@v2.21
       env:
-        CIBW_BUILD: cp312-* cp313-*
+        CIBW_BUILD: cp312-* cp313-* cp314-*
         CIBW_ARCHS_LINUX: x86_64 aarch64
         CIBW_SKIP: "*-musllinux_*"
         CIBW_BEFORE_BUILD_LINUX: yum install -y gcc python3-devel || apt-get install -y gcc python3-dev
