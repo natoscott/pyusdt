@@ -14,7 +14,8 @@ $(TARGET): $(SRC) usdt.h
 	$(CC) $(CFLAGS) -shared -o $(TARGET) $(SRC) $(PYTHON_LDFLAGS)
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) pyusdt-*.whl
+	rm -fr dist pyusdt.egg-info pyusdt/__pycache__
 
 test:
 	for test in tests/*.py; do PYTHONPATH=. python $$test || exit 1; done
