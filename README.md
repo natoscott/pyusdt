@@ -71,6 +71,26 @@ python -m pyusdt sleep.py
 sudo bpftrace sample.bt -p $(pgrep -f "python -m pyusdt")
 ```
 
+### Example bpftrace Script
+
+Here's a simple one-liner to trace Python function entries:
+
+```bash
+sudo bpftrace -e 'usdt:./libpyusdt.so:pyusdt:PY_START { printf("%s (%s:%d)\n", str(arg0), str(arg1), arg2); }' -c "python -m pyusdt sleep.py"
+```
+
+**Note:** When using `pip install pyusdt`, the library path will be different (installed in your Python site-packages). Use `-p <PID>` to attach to a running process instead of specifying the library path, and bpftrace will automatically find the loaded library.
+
+**Available USDT probes:**
+- `PY_START` - Function entry: `(function, file, line, offset)`
+- `PY_RESUME` - Generator/coroutine resume: `(function, file, line, offset)`
+- `PY_RETURN` - Function return: `(function, file, line, offset, retval)`
+- `PY_YIELD` - Generator yield: `(function, file, line, offset, yieldval)`
+- `CALL` - Function call: `(function, file, line, offset, callable)`
+- `LINE` - Line execution: `(function, file, line)`
+
+The included `sample.bt` script traces all 6 probe types with detailed output.
+
 ## Testing
 
 Run the test suite:
